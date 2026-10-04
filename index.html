@@ -146,7 +146,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .blank { font-weight: 700; color: var(--brand); letter-spacing: 1px; white-space: nowrap; }
 .options { display: grid; gap: 10px; margin: 14px 0; }
 .opt { font: inherit; display: flex; align-items: center; gap: 12px; text-align: start; width: 100%; background: var(--surface); color: var(--text); border: 1.5px solid var(--border); border-radius: 14px; padding: 11px 14px; min-height: 52px; cursor: pointer; transition: border-color .12s, background .12s; }
-button.opt:hover { border-color: var(--brand); background: var(--brand-soft); }
+/* hover only with a real mouse, and only after it moves: otherwise the option that happens to be under
+   the finger or the resting cursor looks already selected when a new question appears */
+@media (hover: hover) and (pointer: fine) { .options:not(.fresh) button.opt:hover { border-color: var(--brand); background: var(--brand-soft); } }
 .opt .key { flex: none; width: 28px; height: 28px; border-radius: 8px; background: var(--surface-2); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; }
 .opt .en { order: 2; flex: 1; text-align: left; }
 .options.answered .opt { cursor: default; }
@@ -1210,7 +1212,7 @@ const App = (() => {
     const hint = hintHtml(q);
     h += `<p class="instr">${esc(q.instr)}</p>${promptHtml(q)}${hint.startsWith('<div') ? hint : ''}`;
     if (q.options) {
-      h += `<div class="options">${q.options.map((o, i) => `<button class="opt" data-act="answer-opt" data-i="${i}"><span class="key">${i + 1}</span>${o.lang === 'en' ? en(o.text) : `<span>${tx(o.text)}</span>`}</button>`).join('')}</div>`;
+      h += `<div class="options fresh">${q.options.map((o, i) => `<button class="opt" data-act="answer-opt" data-i="${i}"><span class="key">${i + 1}</span>${o.lang === 'en' ? en(o.text) : `<span>${tx(o.text)}</span>`}</button>`).join('')}</div>`;
     } else {
       h += `<form class="typed" data-act="answer-typed"><input name="ans" autocomplete="off" autocapitalize="off" spellcheck="false" ${q.input === 'en' ? 'dir="ltr" lang="en" placeholder="type the word"' : 'dir="rtl" lang="he" placeholder="הקלד כאן"'} autofocus aria-label="תשובה">
         <button class="btn primary" type="submit">בדוק</button></form><p class="field-error" id="ferr" role="alert"></p>`;
@@ -1739,6 +1741,7 @@ const App = (() => {
     document.addEventListener('submit', safe(onSubmit));
     document.addEventListener('change', safe(onChange));
     document.addEventListener('keydown', safe(onKey));
+    document.addEventListener('mousemove', () => { const o = document.querySelector('.options.fresh'); if (o) o.classList.remove('fresh'); });
     window.addEventListener('storage', onStorage);
     // ask the browser to keep this site's storage (best effort; ignored where unsupported)
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignore */ }
