@@ -1,6 +1,6 @@
 // Offline support for the installed web app. The version changes on every build,
 // so a new word batch replaces the old cache the next time the app is opened online.
-const CACHE = 'amv-1c1fe5d107';
+const CACHE = 'amv-5199e1cb8a';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -14,8 +14,11 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   if (req.mode === 'navigate') {
     // network first, so a new version arrives when online; cached copy when offline
-    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); return res; })
-      .catch(() => caches.match('./index.html')));
+    // a slow or hanging connection falls back to the cached copy after a few seconds
+    const cached = () => caches.match('./index.html');
+    const net = fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put('./index.html', copy)); return res; });
+    const slow = new Promise(r => setTimeout(r, 4000)).then(cached).then(hit => hit || net);
+    e.respondWith(Promise.race([net.catch(cached), slow]).then(res => res || Response.error()));
     return;
   }
   e.respondWith(caches.match(req).then(hit => hit || fetch(req)));

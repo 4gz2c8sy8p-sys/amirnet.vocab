@@ -44,7 +44,7 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, .3);
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; touch-action: manipulation; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 "Assistant", "Segoe UI", system-ui, -apple-system, Arial, sans-serif; font-weight: 400; }
 #app { max-width: 760px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(56px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
 h1 { font-size: 1.3rem; margin: 0; } h2 { font-size: 1.1rem; margin: 0 0 8px; } h3 { font-size: 1rem; margin: 18px 0 4px; }
@@ -1659,6 +1659,25 @@ const App = (() => {
     if (e.target.matches('input, textarea, select')) return;
     const s = A.session; if (!s || !['placement', 'practice'].includes(A.view)) return;
     if (s.phase === 'question' && /^[1-9]$/.test(e.key)) { onOption(Number(e.key) - 1); e.preventDefault(); }
+    // Enter continues after an answer even when focus has left the "continue" button
+    // (e.g. after clicking the page or the speaker); a focused button handles Enter itself.
+    if (e.key === 'Enter' && s.phase === 'feedback' && !e.target.closest('button, a, summary')) { e.preventDefault(); next(); }
+  }
+  // Safety net: an unexpected error must never leave the screen unresponsive. Progress (the
+  // answer history) is kept; the open session is closed and the user returns to the main screen.
+  function safe(fn) {
+    return e => {
+      try { fn(e); } catch (err) { recover(err); }
+    };
+  }
+  function recover(err) {
+    const msg = String(err && (err.stack || err.message) || err).slice(0, 600);
+    try { localStorage.setItem('amv.lastError', JSON.stringify({ t: now(), view: A.view, msg })); } catch (e) { /* ignore */ }
+    A.session = null; saveSession();
+    A.importPreview = null; A.confirmReset = false; A.from = null;
+    A.flash = { kind: 'error', text: `משהו השתבש, ולכן חזרנו למסך הראשי. ההתקדמות שמורה. (${String(err && err.message || err).slice(0, 80)})` };
+    A.view = 'home'; A.arg = null;
+    try { render(); } catch (e2) { root().innerHTML = '<p style="padding:16px">משהו השתבש. רענן את הדף. ההתקדמות שמורה.</p>'; }
   }
   function speak(text) {
     try {
@@ -1683,14 +1702,14 @@ const App = (() => {
     A.bank = { ...vb, byId: Object.fromEntries(vb.words.map(w => [w.id, w])) };
     loadAll();
     if (A.session && A.session.kind === 'placement' && !A.session.result) A.view = 'home';
-    document.addEventListener('click', onClick);
-    document.addEventListener('submit', onSubmit);
-    document.addEventListener('change', onChange);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('click', safe(onClick));
+    document.addEventListener('submit', safe(onSubmit));
+    document.addEventListener('change', safe(onChange));
+    document.addEventListener('keydown', safe(onKey));
     window.addEventListener('storage', onStorage);
     // ask the browser to keep this site's storage (best effort; ignored where unsupported)
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* ignore */ }
-    render();
+    try { render(); } catch (err) { recover(err); }
   }
 
   return { init, A, makeQuestion, render, go, KEYS };
