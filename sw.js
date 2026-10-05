@@ -1,6 +1,6 @@
 // Offline support for the installed web app. The version changes on every build,
 // so a new word batch replaces the old cache the next time the app is opened online.
-const CACHE = 'amv-7cb53d8187';
+const CACHE = 'amv-6d788932e4';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
