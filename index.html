@@ -318,7 +318,8 @@ const Core = (() => {
     passage:     { skill: 'recog',  label: 'מילה בתוך קטע',           origin: 'amirnetInspired', guess: 0.25, offset: 2 },
     restatement: { skill: 'recog',  label: 'ניסוח מחדש',             origin: 'amirnet',  guess: 0.25, offset: 6 },
     family:      { skill: 'recog',  label: 'משפחות מילים',           origin: 'original', guess: 0.33, offset: 2 },
-    spelling:    { skill: 'recog',  label: 'איות',                   origin: 'original', guess: 0.25, offset: 3 },
+    // retired 2026-10-09 at the user's request: never chosen again; kept so old history and sessions stay valid
+    spelling:    { skill: 'recog',  label: 'איות',                   origin: 'original', guess: 0.25, offset: 3, retired: true },
     typeHe:      { skill: 'recall', label: 'שליפה: משמעות בעברית',    origin: 'original', guess: 0,    offset: 6 },
     typeEn:      { skill: 'recall', label: 'שליפה: המילה באנגלית',    origin: 'original', guess: 0,    offset: 10 },
     typeCloze:   { skill: 'recall', label: 'השלמת מילה במשפט',        origin: 'original', guess: 0,    offset: 8 },
@@ -591,6 +592,7 @@ const Core = (() => {
 
   /* ---------- Choosing the practice format ---------- */
   function hasData(word, type) {
+    if (TYPES[type] && TYPES[type].retired) return false;
     const p = word.practice || {};
     if (type === 'distinction') return !!p.distinction;
     if (type === 'passage') return !!p.passage;
@@ -1105,7 +1107,7 @@ const App = (() => {
   }
   function focusCard() {
     const f = (A.meta && A.meta.focus) || {};
-    const typeOpts = Object.entries(C.TYPES).map(([k, v]) => `<option value="${k}" ${f.type === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
+    const typeOpts = Object.entries(C.TYPES).filter(([, v]) => !v.retired).map(([k, v]) => `<option value="${k}" ${f.type === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
     const lvlOpts = [1, 2, 3, 4].map(l => `<option value="${l}" ${String(f.level) === String(l) ? 'selected' : ''}>רמה ${l}</option>`).join('');
     return `<section class="card focus-card"><h2>תרגול ממוקד</h2>
       <form class="focus-form" data-act="focus-start" novalidate>
@@ -1351,7 +1353,11 @@ const App = (() => {
     if (!s || s.kind !== 'practice') return homeView();
     if (s.idx >= s.items.length) return summaryView(s);
     const it = s.items[s.idx];
-    if (!it.qdata) { it.qdata = makeQuestion(it); saveSession(); }
+    if (it.qdata && C.TYPES[it.q].retired && s.phase === 'question') it.qdata = null; // a session saved before a format was retired
+    if (!it.qdata) {
+      if (C.TYPES[it.q].retired) it.q = C.chooseType(A.bank.byId[it.w], A.state.words[it.w], A.state.theta, C.mulberry32(seedOf(it.w + s.id)));
+      it.qdata = makeQuestion(it); saveSession();
+    }
     const prog = `${s.idx + 1}/${s.items.length}`;
     return header(s.focus ? 'תרגול ממוקד' : 'תרגול') + (s.focus ? `<p class="focus-tag">${esc(focusLabel(s.focus))}</p>` : '') + progressBar(s.idx / s.items.length) + `<section class="card qcard">${s.phase === 'feedback' ? feedbackHtml(it.qdata, s.lastAnswer, { allowSelf: s.lastAnswer.allowSelf }) : questionHtml(it.qdata, { progress: prog })}</section>`;
   }
@@ -1650,7 +1656,7 @@ const App = (() => {
       ${card('📈', 'h-brand', 'אחוז ההתקדמות', `<p>עולה בהדרגה עם תשובות נכונות ויורד עם טעויות. תשובה אחת לא מזיזה אותו ביותר מ-${P.maxStep}%.</p>`)}
       ${card('🧩', 'h-l2', 'אילו מילים יופיעו', '<p>מילים חדשות מגיעות משתי רמות סמוכות. ככל שהאחוז עולה, יותר מהן מהרמה הקשה.</p>')}
       ${card('🔁', 'h-l1', 'חזרות', `<p>מילה שענית עליה נכון חוזרת אחרי ${P.intervalsDays.slice(1, 6).join(', ')} ימים ויותר. מילה שטעית בה חוזרת במפגש הבא, וגם פעם נוספת באותו מפגש.</p>`)}
-      ${card('✍️', 'h-l3', 'סוגי שאלות', `<p><strong>בחירה:</strong> משמעות, השלמת משפט, איות, מילים דומות, משפחות מילים.</p><p><strong>פתוחות:</strong> הקלדת המשמעות או המילה. הן מתחילות אחרי שזיהית מילה פעם אחת.</p><p><span class="tag amirnet">בסגנון אמירנט</span> השלמת משפטים וניסוח מחדש.</p>`)}
+      ${card('✍️', 'h-l3', 'סוגי שאלות', `<p><strong>בחירה:</strong> משמעות, השלמת משפט, מילים דומות, משפחות מילים.</p><p><strong>פתוחות:</strong> הקלדת המשמעות או המילה. הן מתחילות אחרי שזיהית מילה פעם אחת.</p><p><span class="tag amirnet">בסגנון אמירנט</span> השלמת משפטים וניסוח מחדש.</p>`)}
       ${card('💡', 'h-amber', 'טיפים', '<ul><li>אם אינך יודע, עדיף ללחוץ על "לא יודע" מאשר לנחש.</li><li>בשאלות קשות אפשר לקבל רמז: המילה בתוך משפט. תשובה נכונה עם רמז נספרת כחצי.</li><li>אם הקלדת תשובה נכונה שלא זוהתה, לחץ "צדקתי".</li><li>מקשים: 1–4 לבחירה, Enter להמשך.</li></ul>')}
       ${card('🎯', 'h-l4', 'תרגול ממוקד', '<p>במסך הראשי אפשר לבחור סוג שאלה, רמה או את שניהם. התשובות נספרות כרגיל.</p>')}
       ${card('💾', 'h-ok', 'שמירה', '<p>ההתקדמות נשמרת אוטומטית בדפדפן. כדאי לייצא גיבוי מדי פעם, דרך הגדרות ← ייצוא.</p>')}
